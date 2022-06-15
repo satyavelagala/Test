@@ -1,0 +1,109 @@
+/****** Object:  Table [test].[reports]    Script Date: 15/06/2022 13:55:22 ******/
+
+--- table 
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [test].[reports]
+
+(
+	[ReportId] [int] IDENTITY(1,1) NOT NULL,
+	[ReportGUID] [nvarchar](100) NULL,
+	[ReportName] [nvarchar](100) NULL,
+	[CreatedDate] [date] NULL,
+	[UpdatedDate] [date] NULL
+) ON [PRIMARY]
+GO
+
+
+
+--- stored proc----
+
+
+alter procedure [test].[Sp_SaveReportDetails]
+(
+
+@ReportsInfo varchar(max) NULL
+--,@ErrorCode int out 
+)
+as
+begin
+
+
+declare  @ErrorCode  int=0
+
+select @ReportInfo = [value]
+ from OpenJson(@ReportsInfo)
+ where [key] = 'items'
+
+ select *
+ into #Reports 
+ from Test.reports
+ where 1<>1
+
+    insert into #Reports (ReportGUID,ReportName)
+    select ReportGUID,ReportName  
+	from openJson(@ReportInfo)
+	with 
+	
+	(
+			 ReportGUID nvarchar(120) '$.id'
+			,ReportName nvarchar(40) '$.name'
+			
+	)
+   
+   begin try
+		begin tran  
+		MERGE [Test].[Reports] T 
+		USING #Reports S 
+		ON (T.ReportName=S.ReportName )
+		WHEN  MATCHED  THEN  UPDATE  SET 
+		T.UpdatedDate = getdate()
+		WHEN NOT MATCHED BY TARGET THEN 
+		INSERT   (ReportGUID,ReportName)
+		VALUES 
+		(S.ReportGUID,S.ReportName);
+		commit
+   end try
+   begin catch
+		rollback 
+		set @ErrorCode = 500
+   end catch
+end
+
+
+--- Test ---------
+declare @ReportsInfo varchar(max) =
+
+'[
+  {
+    "id": "96b1f921-1bb9-4c02-a69c-a5e9297cff39",
+    "name": "Human Resources Sample"
+  },
+  {
+    "id": "4505cff0-e747-4ed9-b348-6eaeac49b2f1",
+    "name": "IT Spend Analysis Sample"
+  },
+  {
+    "id": "4329eeb3-f5b4-4eda-a2f4-64c095dbca83",
+    "name": "Opportunity Analysis Sample"
+  },
+  {
+    "id": "0fd997cd-a2eb-4701-a41b-0543463352b0",
+    "name": "Retail Analysis Sample"
+  },
+  {
+    "id": "6e4b1862-f103-43be-bbdb-3cd3bbdf33e4",
+    "name": "Sales and Marketing Sample"
+  }
+]'
+
+execute [Test].[Sp_SaveReportDetails] @ReportsInfo
+
+
+
+
