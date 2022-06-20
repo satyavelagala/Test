@@ -1,0 +1,297 @@
+GetPowerBI Reports
+
+
+**************************
+
+#Get PowerBI Reports in a Group
+
+using namespace System.Net
+
+
+param($Request, $TriggerMetadata)
+
+
+Write-Host "PowerShell HTTP trigger function processed a request."
+
+
+$WsName = $Request.Query.WsName
+if (-not $WsName) {
+    $Id = $Request.Body.WsName
+}
+
+$body = "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
+
+if ($WsName) {
+     $body = "Hello, $WsName. This HTTP triggered function executed successfully."
+}
+
+
+
+# Application-TenantId-ClientSecrets
+
+$AppId = ""
+$TenantId = ""
+$ClientSecret = "" 
+
+#Create secure string & credential for application id and client secret
+$PbiSecurePassword = ConvertTo-SecureString $ClientSecret -Force -AsPlainText
+$PbiCredential = New-Object Management.Automation.PSCredential($AppId, $PbiSecurePassword)
+#Connect to the Power BI service
+Connect-PowerBIServiceAccount -ServicePrincipal -TenantId $TenantId -Credential $PbiCredential
+$headers = Get-PowerBIAccessToken
+$Ws=Get-PowerBIWorkspace -Name $WsName
+$WsId =$Ws.Id
+$ApiUrl='https://api.powerbi.com/v1.0/myorg/groups/' + $WsId +'/reports'
+$Reports =Invoke-RestMethod -Headers $headers -Uri $ApiUrl -Method Get
+$ReportsInformation=$Reports.value | select-Object id,name,@{Name="WorkspaceName";expression={$WsName}} | ConvertTo-Json -EnumsAsStrings
+Write-Warning $ReportsInformation
+Write-Warning $ReportsInformation.GetType()
+
+Function Execute-Procedure {
+     Process
+    {
+        $serverName = "sql5100.site4now.net"
+        $databaseName = "db_a6a1c5_realcommerce"
+        $userId = "db_a6a1c5_realcommerce_admin"
+        $userPwd = "Z99ayjar"
+        $Connection = New-Object System.Data.SQLClient.SQLConnection
+        $Connection.ConnectionString = "server='$serverName';database='$databaseName';User Id='$UserId';Password='$userPwd'"
+      
+        
+        $cmd = New-Object System.Data.SqlClient.SqlCommand
+        $cmd.Connection = $Connection
+        
+        $cmd.CommandTimeout = 0
+          ### Tie parameters using SqlParameters
+        $cmd.CommandText = "EXEC test.Sp_SaveReportDetails '$ReportsInformation'"
+
+        try
+        {
+            $Connection.Open()
+            $cmd.ExecuteNonQuery() | Out-Null
+        }
+        catch [Exception]
+        {
+            Write-Warning $_.Exception.Message
+        }
+        finally
+        {
+            $Connection.Dispose()
+            $cmd.Dispose()
+        }
+    }
+}
+
+ Execute-Procedure -ReportsInfo @ReportsInformation
+
+# Associate values to output bindings by calling 'Push-OutputBinding'.
+Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
+    StatusCode = [HttpStatusCode]::OK
+    Body = $ReportsInformation
+})
+
+*****GetExchangeRates ***********
+
+#Get Daily Exchange Rates  
+
+using namespace System.Net
+
+
+param($Request, $TriggerMetadata)
+
+
+Write-Host "PowerShell HTTP trigger function processed a request."
+
+
+$body = "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
+
+if ($WsName) {
+     $body = "Hello, $WsName. This HTTP triggered function executed successfully."
+}
+
+$XEApiAccountId = 'bss811304721'
+$XEAPIApiKey = '8rtgha431u7ldtrk8sel0hllg9'
+
+$headers = @{'X-Auth-user' = $XEApiAccountId; 'X-Auth-Password' = $XEAPIApiKey}
+$base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f $XEApiAccountId,$XEAPIApiKey)))
+
+#Invoke-RestMethod -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)}
+
+$AccountInfoApiUrl='https://xecdapi.xe.com/v1/account_info'
+$CurrencyExchangeAPiUrl ='https://xecdapi.xe.com/v1/convert_from?from=GBP&date=2022-06-20&to=CAD,EUR,INR,USD,AUD'
+$Reports =Invoke-RestMethod -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)} -Uri $CurrencyExchangeAPiUrl -Method Get
+$ReportsInformation=$Reports | ConvertTo-Json -EnumsAsStrings
+Write-Warning $Reports
+Write-Warning $ReportsInformation
+Write-Warning $ReportsInformation.GetType()
+
+Function Execute-Procedure {
+     Process
+    {
+        $serverName = ""
+        $databaseName = ""
+        $userId = ""
+        $userPwd = ""
+        $Connection = New-Object System.Data.SQLClient.SQLConnection
+        $Connection.ConnectionString = "server='$serverName';database='$databaseName';User Id='$UserId';Password='$userPwd'"
+      
+        
+        $cmd = New-Object System.Data.SqlClient.SqlCommand
+        $cmd.Connection = $Connection
+        
+        $cmd.CommandTimeout = 0
+          ### Tie parameters using SqlParameters
+       $cmd.CommandText = "EXEC test.Sp_SaveCurrencyExcahngeDetails '$ReportsInformation'"
+
+        try
+        {
+            $Connection.Open()
+            $cmd.ExecuteNonQuery() | Out-Null
+        }
+        catch [Exception]
+        {
+            Write-Warning $_.Exception.Message
+        }
+        finally
+        {
+            $Connection.Dispose()
+            $cmd.Dispose()
+        }
+    }
+}
+
+ Execute-Procedure 
+
+# Associate values to output bindings by calling 'Push-OutputBinding'.
+Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
+    StatusCode = [HttpStatusCode]::OK
+    Body = $ReportsInformation
+})
+
+
+
+
+****
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER procedure [test].[Sp_SaveCurrency]
+(
+
+   @CurrencyInfo varchar(max) NULL
+--,@ErrorCode int out 
+)
+as
+begin
+
+
+declare  @ErrorCode  int=0
+
+select @CurrencyInfo = [value]
+ from OpenJson(@CurrencyInfo)
+ where [key] = 'items'
+
+ select *
+ into #Currency 
+ from Test.Currency
+ where 1<>1
+
+    insert into #Currency (CurrentDate,FromCurrencyCode,ToCurrencyCode,ExchangeRate)
+    select CurrentDate,FromCurrencyCode,ToCurrencyCode,ExchangeRate  
+	from openJson(@CurrencyInfo)
+	with 
+	
+	(
+			 CurrentDate nvarchar(120) '$.id'
+			,FromCurrencyCode nvarchar(40) '$.name'
+			,ToCurrencyCode nvarchar(40) '$.name'
+			,ExchangeRate  decimal(16,4) '$.name'
+
+			
+	)
+   
+   begin try
+		begin tran  
+		MERGE [Test].[currency] T 
+		USING #currency S 
+		ON (T.Currencycode=S.Currencycode  AND T.CurrentDate=S.CurrentDate)
+		WHEN  MATCHED  THEN  UPDATE  SET 
+		T.UpdatedDate = getdate()
+		WHEN NOT MATCHED BY TARGET THEN 
+		INSERT   (CurrentDate,FromCurrencyCode,ToCurrencyCode,ExchangeRate)
+		VALUES 
+		(S.CurrentDate,S.FromCurrencyCode,S.ToCurrencyCode,S.ExchangeRate);
+		commit
+   end try
+   begin catch
+		rollback 
+		set @ErrorCode = 500
+   end catch
+end
+
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER procedure [test].[Sp_SaveCurrencyExcahngeDetails]
+(
+
+@CurrencyExchangeInfo varchar(max)
+--,@ErrorCode int out 
+)
+as
+begin
+
+
+declare  @ErrorCode  int=0,@FromCurrency Varchar(100) , @ToCurrencyExchangeInfo Varchar(max),@CurrencyDate Varchar(100)
+
+insert into test.reports_log(inputlog) values (@CurrencyExchangeInfo)
+
+select @ToCurrencyExchangeInfo = (case when [key]='to' then [value] else @ToCurrencyExchangeInfo end)
+     ,@FromCurrency = (case when [key]='from' then [value] else @FromCurrency end)
+	 ,@CurrencyDate = (case when [key]='timestamp' then [value] else @CurrencyDate end)
+ from OpenJson(@CurrencyExchangeInfo)
+ where [key] in ( 'to','from','timestamp')
+
+ select *
+ into #Currency 
+ from Test.Currency
+ where 1<>1
+
+    insert into #Currency (CurrentDate,FromCurrencyCode,ToCurrencyCode,ExchangeRate)
+    select cast(@CurrencyDate as date) ,@FromCurrency as FromCurrencyCode,ToCurrencyCode, ExchangeRate 
+	from openJson(@ToCurrencyExchangeInfo)
+	with 
+	
+	(
+			 ToCurrencyCode nvarchar(120) '$.quotecurrency'
+			,ExchangeRate decimal(25,12) '$.mid'
+	)   
+
+   begin try
+		begin tran  
+		MERGE [Test].[Currency] T 
+		USING #Currency S 
+		ON (Cast(T.CurrentDate as date) = cast(s.CurrentDate as date) and 
+		    t.FromCurrencyCode =s.FromCurrencyCode and 
+			t.ToCurrencyCode = s.ToCurrencyCode )
+		WHEN  MATCHED  THEN  UPDATE  SET 
+		T.ExchangeRate = s.ExchangeRate
+		WHEN NOT MATCHED BY TARGET THEN 
+		INSERT   (CurrentDate,FromCurrencyCode,ToCurrencyCode,ExchangeRate)
+		VALUES (S.CurrentDate,S.FromCurrencyCode,S.ToCurrencyCode,s.ExchangeRate);
+		commit
+   end try
+   begin catch
+		rollback 
+		set @ErrorCode = 500
+   end catch
+
+end
+
+
+
+
