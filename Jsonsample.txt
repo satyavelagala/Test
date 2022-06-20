@@ -1,0 +1,29 @@
+{
+  "terms": "http://www.xe.com/legal/dfs.php",
+  "privacy": "http://www.xe.com/privacy.php",
+  "from": "GBP",
+  "amount": 1.0,
+  "timestamp": "2022-06-18T00:00:00Z",
+  "to": [
+    {
+      "quotecurrency": "AUD",
+      "mid": 1.7599118065
+    },
+    {
+      "quotecurrency": "EUR",
+      "mid": 1.1614034184
+    },
+    {
+      "quotecurrency": "CAD",
+      "mid": 1.5892935718
+    },
+    {
+      "quotecurrency": "USD",
+      "mid": 1.2184829204
+    },
+    {
+      "quotecurrency": "INR",
+      "mid": 95.0054718016
+    }
+  ]
+}
