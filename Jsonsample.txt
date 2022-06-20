@@ -1,0 +1,93 @@
+{
+  "terms": "http://www.xe.com/legal/dfs.php",
+  "privacy": "http://www.xe.com/privacy.php",
+  "from": "GBP",
+  "amount": 1.0,
+  "timestamp": "2022-06-18T00:00:00Z",
+  "to": [
+    {
+      "quotecurrency": "AUD",
+      "mid": 1.7599118065
+    },
+    {
+      "quotecurrency": "EUR",
+      "mid": 1.1614034184
+    },
+    {
+      "quotecurrency": "CAD",
+      "mid": 1.5892935718
+    },
+    {
+      "quotecurrency": "USD",
+      "mid": 1.2184829204
+    },
+    {
+      "quotecurrency": "INR",
+      "mid": 95.0054718016
+    }
+  ]
+}
+
+
+USE [db_a6a1c5_realcommerce]
+GO
+/****** Object:  StoredProcedure [test].[Sp_SaveCurrencyExcahngeDetails]    Script Date: 20/06/2022 14:34:08 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER procedure [test].[Sp_SaveCurrencyExcahngeDetails]
+(
+
+@CurrencyExchangeInfo varchar(max)
+--,@ErrorCode int out 
+)
+as
+begin
+
+
+declare  @ErrorCode  int=0,@FromCurrency Varchar(100) , @ToCurrencyExchangeInfo Varchar(max),@CurrencyDate Varchar(100)
+
+insert into test.reports_log(inputlog) values (@CurrencyExchangeInfo)
+
+select @ToCurrencyExchangeInfo = (case when [key]='to' then [value] else @ToCurrencyExchangeInfo end)
+     ,@FromCurrency = (case when [key]='from' then [value] else @FromCurrency end)
+	 ,@CurrencyDate = (case when [key]='timestamp' then [value] else @CurrencyDate end)
+ from OpenJson(@CurrencyExchangeInfo)
+ where [key] in ( 'to','from','timestamp')
+
+ select *
+ into #Currency 
+ from Test.Currency
+ where 1<>1
+
+    insert into #Currency (CurrentDate,FromCurrencyCode,ToCurrencyCode,ExchangeRate)
+    select cast(@CurrencyDate as date) ,@FromCurrency as FromCurrencyCode,ToCurrencyCode, ExchangeRate 
+	from openJson(@ToCurrencyExchangeInfo)
+	with 
+	
+	(
+			 ToCurrencyCode nvarchar(120) '$.quotecurrency'
+			,ExchangeRate decimal(25,12) '$.mid'
+	)   
+
+   begin try
+		begin tran  
+		MERGE [Test].[Currency] T 
+		USING #Currency S 
+		ON (Cast(T.CurrentDate as date) = cast(s.CurrentDate as date) and 
+		    t.FromCurrencyCode =s.FromCurrencyCode and 
+			t.ToCurrencyCode = s.ToCurrencyCode )
+		WHEN  MATCHED  THEN  UPDATE  SET 
+		T.ExchangeRate = s.ExchangeRate
+		WHEN NOT MATCHED BY TARGET THEN 
+		INSERT   (CurrentDate,FromCurrencyCode,ToCurrencyCode,ExchangeRate)
+		VALUES (S.CurrentDate,S.FromCurrencyCode,S.ToCurrencyCode,s.ExchangeRate);
+		commit
+   end try
+   begin catch
+		rollback 
+		set @ErrorCode = 500
+   end catch
+
+end
