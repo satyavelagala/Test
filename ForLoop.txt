@@ -1,0 +1,132 @@
+#Get Daily Exchange Rates  
+
+using namespace System.Net
+
+
+param($Request, $TriggerMetadata)
+
+
+Write-Host "PowerShell HTTP trigger function processed a request."
+
+
+$body = "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
+
+if ($WsName) {
+     $body = "Hello, $WsName. This HTTP triggered function executed successfully."
+}
+
+$XEApiAccountId = 'xxx'
+$XEAPIApiKey = 'xxx'
+
+
+#Invoke-RestMethod -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)}
+
+
+
+$serverName = "xxx"
+$databaseName = "xxxx"
+$userId = "xxxx"
+$userPwd = "xxxx"
+
+$dsCurrencyMaster= New-Object System.Data.DataSet
+    
+
+Function SaveExchangeInfo-Procedure {
+    param(
+     [Parameter()]
+     [string]$CurrencyExchangeInformation
+   )
+     Process
+    {
+        
+        $Connection = New-Object System.Data.SQLClient.SQLConnection
+        $Connection.ConnectionString = "server='$serverName';database='$databaseName';User Id='$UserId';Password='$userPwd'"
+        $cmd = New-Object System.Data.SqlClient.SqlCommand
+        $cmd.Connection = $Connection        
+        $cmd.CommandTimeout = 0
+          ### Tie parameters using SqlParameters
+       $cmd.CommandText = "EXEC analytics.Sp_SaveCurrencyExcahngeDetails '$CurrencyExchangeInformation'"
+        try
+        {
+            Write-Warning "Calling save Exchange information Method"
+            $Connection.Open()
+            $cmd.ExecuteNonQuery() | Out-Null
+        }
+        catch [Exception]
+        {
+            Write-Warning $_.Exception.Message
+        }
+        finally
+        {
+            $Connection.Dispose()
+            $cmd.Dispose()
+        }
+    }
+}
+
+Function GetCurrencyMasterData {
+
+    Process
+    {
+        
+        $Connection = New-Object System.Data.SQLClient.SQLConnection
+        $Connection.ConnectionString = "server='$serverName';database='$databaseName';User Id='$UserId';Password='$userPwd'"      
+        
+        $cmd = New-Object System.Data.SqlClient.SqlCommand
+        $cmd.Connection = $Connection
+        
+        $cmd.CommandTimeout = 0
+          ### Tie parameters using SqlParameters
+       $cmd.CommandText = "EXEC SP_GetAllCurrencyMasterInfo"
+
+        $adapter = New-Object System.Data.sqlclient.sqlDataAdapter $cmd
+        $dsCurrencyMaster = New-Object System.Data.DataSet
+    
+        try
+        {
+            Write-Warning "Called method GetCurrencyMaster Data"
+            $Connection.Open()
+             $rowCount = $adapter.Fill($dsCurrencyMaster) 
+             if($rowCount -gt 0){
+                 Write-Host "Dataset filled with data"                 
+                    $headers = @{'X-Auth-user' = $XEApiAccountId; 'X-Auth-Password' = $XEAPIApiKey}
+                    $base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("{0}:{1}" -f $XEApiAccountId,$XEAPIApiKey)))
+                 foreach($currencyRow in $dsCurrencyMaster.Tables[0] | Select-Object )
+                 {
+                     try 
+                     {
+                       $CurrencyExchangeAPiUrl ="https://xecdapi.xe.com/v1/convert_from?from=$($currencyRow[1])&date=2022-06-20&to=$($currencyRow[2])"                     
+                        Write-Host $CurrencyExchangeAPiUrl
+                        $Reports =Invoke-RestMethod -Headers @{Authorization=("Basic {0}" -f $base64AuthInfo)} -Uri $CurrencyExchangeAPiUrl -Method Get
+                        $ReportsInformation=$Reports | ConvertTo-Json -EnumsAsStrings
+                        SaveExchangeInfo-Procedure $ReportsInformation
+                     }
+                     catch [Exception]
+                    {
+                        Write-Warning $_.Exception.Message
+                    }
+                     
+                 }
+             }
+        }
+        catch [Exception]
+        {
+            Write-Warning $_.Exception.Message
+        }
+        finally
+        {
+            $Connection.Dispose()
+            $cmd.Dispose()
+        }
+    }
+
+}
+
+#SaveExchangeInfo-Procedure 
+GetCurrencyMasterData
+# Associate values to output bindings by calling 'Push-OutputBinding'.
+Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
+    StatusCode = [HttpStatusCode]::OK
+    Body = "Hellow World"
+})
+
