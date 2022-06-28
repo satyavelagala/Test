@@ -1,0 +1,141 @@
+#Get PowerBI Reports in a Group
+
+using namespace System.Net
+
+param($Request, $TriggerMetadata)
+
+
+Write-Host "PowerShell HTTP trigger function processed a request."
+
+
+
+
+
+# Application-TenantId-ClientSecrets
+
+$AppId = "xxx"
+$TenantId = "xxxx"
+$ClientSecret = "xxx" 
+
+#Create secure string & credential for application id and client secret
+$PbiSecurePassword = ConvertTo-SecureString $ClientSecret -Force -AsPlainText
+$PbiCredential = New-Object Management.Automation.PSCredential($AppId, $PbiSecurePassword)
+#Connect to the Power BI service
+Connect-PowerBIServiceAccount -ServicePrincipal -TenantId $TenantId -Credential $PbiCredential
+$headers = Get-PowerBIAccessToken
+
+
+Function Execute-Procedure {
+     Process
+    {
+        $serverName = "xx"
+        $databaseName = "xx"
+        $userId = "xx"
+        $userPwd = "xx"
+        $Connection = New-Object System.Data.SQLClient.SQLConnection
+        $Connection.ConnectionString = "server='$serverName';database='$databaseName';User Id='$UserId';Password='$userPwd'"
+      
+        
+        $cmd = New-Object System.Data.SqlClient.SqlCommand
+        $cmd.Connection = $Connection
+        
+        $cmd.CommandTimeout = 0
+          ### Tie parameters using SqlParameters
+        $cmd.CommandText = "EXEC test.Sp_SaveReportDetails '$ReportsInformation'"
+
+        try
+        {
+            $Connection.Open()
+            $cmd.ExecuteNonQuery() | Out-Null
+        }
+        catch [Exception]
+        {
+            Write-Warning $_.Exception.Message
+        }
+        finally
+        {
+            $Connection.Dispose()
+            $cmd.Dispose()
+        }
+    }
+}
+
+Function ReportWorkspaces
+
+ {
+
+    Process
+    {
+        $serverName = "xxx"
+        $databaseName = "xxx"
+        $userId = "xxx"
+        $userPwd = "xxx"
+        $Connection = New-Object System.Data.SQLClient.SQLConnection
+        $Connection.ConnectionString = "server='$serverName';database='$databaseName';User Id='$UserId';Password='$userPwd'"      
+        
+        $cmd = New-Object System.Data.SqlClient.SqlCommand
+        $cmd.Connection = $Connection
+        
+        $cmd.CommandTimeout = 0
+          ### Tie parameters using SqlParameters
+       $cmd.CommandText = "SELECT [WorkspaceId],[WorkspaceName]  FROM [db_a6a1c5_realcommerce].[test].[Report_Workspaces]"
+
+        $adapter = New-Object System.Data.sqlclient.sqlDataAdapter $cmd
+        $dsReportsMaster = New-Object System.Data.DataSet
+    
+        try
+        {
+            Write-Warning "Called method Reports Workspace Data"
+            $Connection.Open()
+             $rowCount = $adapter.Fill($dsReportsMaster) 
+             if($rowCount -gt 0)
+{
+                 Write-Host "Dataset filled with data"                 
+                 foreach($ReportRow in $dsReportsMaster.Tables[0] | Select-Object )
+                 {
+                     try 
+                     {
+                        $headers = Get-PowerBIAccessToken
+			            $Ws=Get-PowerBIWorkspace -Name $ReportRow[1]
+                        Write-Host ($ReportRow[1])
+                        $Ws1Name=$Ws.name
+			            $WsId =$Ws.Id
+			            $ApiUrl='https://api.powerbi.com/v1.0/myorg/groups/' + $WsId +'/reports'
+                        $Reports =Invoke-RestMethod -Headers $headers -Uri $ApiUrl -Method Get
+                        $ReportsInformation=$Reports.value | select-Object id,name,@{Name="WorkspaceName";expression={$Ws1Name}},@{Name="WorkspaceId";expression={$WsId.Guid}} | ConvertTo-Json -EnumsAsStrings
+                        
+			Execute-Procedure $ReportsInformation
+                     }
+                     catch [Exception]
+                    {
+                        Write-Warning $_.Exception.Message
+                    }
+                     
+                 }
+             }
+        }
+        catch [Exception]
+        {
+            Write-Warning $_.Exception.Message
+        }
+        finally
+        {
+            $Connection.Dispose()
+            $cmd.Dispose()
+        }
+    }
+
+}
+
+ReportWorkspaces
+
+# Execute-Procedure -ReportsInfo @ReportsInformation
+
+# Associate values to output bindings by calling 'Push-OutputBinding'.
+Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
+    StatusCode = [HttpStatusCode]::OK
+    Body = $ReportsInformation
+})
+
+
+
