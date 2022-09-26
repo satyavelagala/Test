@@ -1,0 +1,57 @@
+# Get the list of AAD Groups and its members
+
+using namespace System.Net
+param($Request, $TriggerMetadata)
+Write-Host "PowerShell HTTP trigger function GetADGroupsAndMemebrs."
+
+$name = $Request.Query.Name
+if (-not $name) {
+    $name = $Request.Body.Name
+}
+
+# Application (client) ID, tenant Name and secret
+$clientId = ""
+$tenantName = ""
+$clientSecret = ""
+$resource = ""
+
+$ReqTokenBody = @{
+    Grant_Type    = "client_credentials"
+    Scope         = "https://graph.microsoft.com/.default"
+    client_Id     = $clientId
+    Client_Secret = $clientSecret
+
+} 
+
+$membersurl="https://azureapips.azurewebsites.net/api/GetAADGroupMembers?code=FKhUHaEzmKwrnmp3NK/8KvINX1USpyVtM4T7Qq5OUjepFgEbQgKyVQ==&id="
+$ownersurl="https://azureapips.azurewebsites.net/api/GetAADGroupOwners?code=vo5UtBYpFLdQ/IAk2dmseXWMOJfJ2tJH7R50qdazkbFgrdbirhPcCg==&id="
+
+$tokenResponse = Invoke-WebRequest -Uri "https://login.microsoftonline.com/$tenantName/oauth2/v2.0/token" -Method POST -Body $ReqTokenBody -UseBasicParsing
+# Extract the Access Token
+$token = ($tokenResponse.Content | ConvertFrom-Json).access_token
+#$token
+#The Graph API URL
+$searchstring = "Q"
+$uri = "https://graph.microsoft.com/v1.0/groups"
+$method = "GET"
+
+$header = @{
+    Authorization = "Bearer $token"
+    ConsistencyLevel = "eventual"
+} 
+# Run the Graph API query to retrieve users
+$output = Invoke-RestMethod -Method $method -Uri $uri -ContentType "application/json" -Headers $header
+$outputdata=$output.value | select id,displayName,description,mail,mailEnabled,securityIdentifier,visibility,@{name="memberslink";expression={$membersurl + $_.id }} ,@{name="ownerslink";expression={$ownersurl + $_.id }}
+$ADMEM=""
+$index=0
+$AllADANDMembers = foreach ($ADgroup in $outputdata){
+    $ADmemebers =  Invoke-RestMethod -Method $method -Uri $ADgroup.memberslink -ContentType "application/json" -Headers $header
+    @{ADGroup = $ADGroup}
+    @{Groupmembers = $ADmemebers}
+}
+$Result=$AllADANDMembers | ConvertTo-Json -Depth 4
+# Associate values to output bindings by calling 'Push-OutputBinding'.
+Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
+    StatusCode = [HttpStatusCode]::OK
+    Body = $Result
+})
