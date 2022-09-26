@@ -1,0 +1,142 @@
+# Get the list of AAD Groups
+
+using namespace System.Net
+
+
+param($Request, $TriggerMetadata)
+
+
+Write-Host "PowerShell HTTP trigger function processed a request."
+
+
+$Id = $Request.Query.Id
+if (-not $Id) {
+    $Id = $Request.Body.Id
+}
+
+$body = "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
+
+if ($Id) {
+     $body = "Hello, $Id. This HTTP triggered function executed successfully."
+}
+
+# Application (client) ID, tenant Name and secret
+
+$clientId = "8081f346-2a93-4465-8830-64ac4453629c"
+$tenantName = "biznex.biz"
+$clientSecret = "G9a8Q~FBNqTVl65ky4ijbj7Z6n7qiV6c9yFOadng"
+$resource = "https://graph.microsoft.com/"
+
+$ReqTokenBody = @{
+    Grant_Type    = "client_credentials"
+    Scope         = "https://graph.microsoft.com/.default"
+    client_Id     = $clientId
+    Client_Secret = $clientSecret
+
+} 
+
+$memberslist=$Id +'/members'
+
+$tokenResponse = Invoke-WebRequest -Uri "https://login.microsoftonline.com/$tenantName/oauth2/v2.0/token" -Method POST -Body $ReqTokenBody -UseBasicParsing
+# Extract the Access Token
+$token = ($tokenResponse.Content | ConvertFrom-Json).access_token
+$token
+#The Graph API URL
+$searchstring = "Q"
+$uri = 'https://graph.microsoft.com/v1.0/groups/' + $memberslist
+ $method = "GET"
+
+$header = @{
+    Authorization = "Bearer $token"
+    ConsistencyLevel = "eventual"
+} 
+# Run the Graph API query to retrieve users
+$output = Invoke-RestMethod -Method $method -Uri $uri -ContentType "application/json" -Headers $header 
+$outputdata=$output.value 
+
+# for full list of columns 
+# $outputdata=$output.value 
+
+
+
+# Associate values to output bindings by calling 'Push-OutputBinding'.
+Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
+    StatusCode = [HttpStatusCode]::OK
+    Body = $outputdata
+})
+
+
+
+
+
+***************
+
+# Get the list of AAD Group Owners
+
+using namespace System.Net
+
+
+param($Request, $TriggerMetadata)
+
+
+Write-Host "PowerShell HTTP trigger function processed a request."
+
+
+$Id = $Request.Query.Id
+if (-not $Id) {
+    $Id = $Request.Body.Id
+}
+
+$body = "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
+
+if ($Id) {
+     $body = "Hello, $Id. This HTTP triggered function executed successfully."
+}
+
+# Application (client) ID, tenant Name and secret
+
+$clientId = "8081f346-2a93-4465-8830-64ac4453629c"
+$tenantName = "biznex.biz"
+$clientSecret = "G9a8Q~FBNqTVl65ky4ijbj7Z6n7qiV6c9yFOadng"
+$resource = "https://graph.microsoft.com/"
+
+$ReqTokenBody = @{
+    Grant_Type    = "client_credentials"
+    Scope         = "https://graph.microsoft.com/.default"
+    client_Id     = $clientId
+    Client_Secret = $clientSecret
+
+} 
+
+$ownerslist=$Id +'/owners'
+
+$tokenResponse = Invoke-WebRequest -Uri "https://login.microsoftonline.com/$tenantName/oauth2/v2.0/token" -Method POST -Body $ReqTokenBody -UseBasicParsing
+# Extract the Access Token
+$token = ($tokenResponse.Content | ConvertFrom-Json).access_token
+$token
+#The Graph API URL
+$searchstring = "Q"
+$uri = 'https://graph.microsoft.com/v1.0/groups/' + $ownerslist
+ $method = "GET"
+
+$header = @{
+    Authorization = "Bearer $token"
+    ConsistencyLevel = "eventual"
+} 
+# Run the Graph API query to retrieve users
+$output = Invoke-RestMethod -Method $method -Uri $uri -ContentType "application/json" -Headers $header 
+$outputdata=$output.value 
+
+# for full list of columns 
+# $outputdata=$output.value 
+
+
+
+# Associate values to output bindings by calling 'Push-OutputBinding'.
+Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
+    StatusCode = [HttpStatusCode]::OK
+    Body = $outputdata
+})
+
+
+
